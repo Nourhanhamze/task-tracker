@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Task Tracker</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --border: #dfe1e6;
+    --text: #172b4d;
+    --muted: #5e6c84;
+    --accent: #0052cc;
+    --danger: #de350b;
+    --high: #de350b;
+    --medium: #ff991f;
+    --low: #36b37e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 16px 24px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 20px; margin: 0; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 160px;
+  }
+  .toolbar label {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-secondary { background: #ebecf0; color: var(--text); }
+  main {
+    padding: 20px 24px;
+  }
+  #status-banner {
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  #status-banner.error { background: #ffebe6; color: var(--danger); border: 1px solid #ffbdad; }
+  #status-banner.loading { background: #deebff; color: var(--accent); }
+  #status-banner[hidden] { display: none; }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .column {
+    background: #ebecf0;
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 300px;
+  }
+  .column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px 10px;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+  .column.drag-over { outline: 2px dashed var(--accent); outline-offset: -4px; }
+  .card-list { min-height: 60px; display: flex; flex-direction: column; gap: 8px; }
+  .empty-placeholder {
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px 8px;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+  }
+  .card {
+    background: var(--card-bg);
+    border-radius: 4px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+    cursor: grab;
+  }
+  .card:active { cursor: grabbing; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; word-break: break-word; }
+  .card-desc { font-size: 12px; color: var(--muted); margin-bottom: 8px; word-break: break-word; }
+  .card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: white;
+  }
+  .pill.priority-High { background: var(--high); }
+  .pill.priority-Medium { background: var(--medium); }
+  .pill.priority-Low { background: var(--low); }
+  .pill.overdue { background: var(--danger); }
+  .tag-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #eae6ff;
+    color: #403294;
+  }
+  .assignee { font-size: 11px; color: var(--muted); }
+  .card-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+  .card-actions button { padding: 4px 10px; font-size: 12px; }
+  .due-date { font-size: 11px; color: var(--muted); }
+  .due-date.overdue-text { color: var(--danger); font-weight: 600; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(9, 30, 66, 0.54);
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal-overlay[hidden] { display: none; }
+  .modal {
+    background: white; border-radius: 6px; padding: 20px; width: 420px; max-width: 92vw;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { margin-top: 0; font-size: 18px; }
+  .field { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .field input, .field textarea, .field select {
+    padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit;
+  }
+  .field-error { color: var(--danger); font-size: 12px; }
+  .form-error {
+    background: #ffebe6; color: var(--danger); border: 1px solid #ffbdad;
+    padding: 8px 10px; border-radius: 4px; font-size: 13px; margin-bottom: 12px;
+  }
+  .form-error[hidden] { display: none; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Task Tracker</h1>
+  <div class="toolbar">
+    <button class="btn-primary" id="new-task-btn">+ New Task</button>
+  </div>
+</header>
+
+<main>
+  <div id="status-banner" hidden></div>
+  <div class="board" id="board">
+    <section class="column" data-status="ToDo">
+      <div class="column-header"><span>To Do</span><span class="count" data-count="ToDo">0</span></div>
+      <div class="card-list" data-list="ToDo"></div>
+    </section>
+    <section class="column" data-status="InProgress">
+      <div class="column-header"><span>In Progress</span><span class="count" data-count="InProgress">0</span></div>
+      <div class="card-list" data-list="InProgress"></div>
+    </section>
+    <section class="column" data-status="Done">
+      <div class="column-header"><span>Done</span><span class="count" data-count="Done">0</span></div>
+      <div class="card-list" data-list="Done"></div>
+    </section>
+  </div>
+</main>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="modal-title">New Task</h2>
+    <div class="form-error" id="form-error" hidden></div>
+    <form id="task-form">
+      <div class="field">
+        <label for="f-title">Title</label>
+        <input type="text" id="f-title" />
+        <span class="field-error" id="f-title-error"></span>
+      </div>
+      <div class="field">
+        <label for="f-description">Description</label>
+        <textarea id="f-description" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <label for="f-status">Status</label>
+        <select id="f-status">
+          <option value="ToDo">To Do</option>
+          <option value="InProgress">In Progress</option>
+          <option value="Done">Done</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-priority">Priority</label>
+        <select id="f-priority">
+          <option value="Low">Low</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="High">High</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-assignee">Assignee</label>
+        <input type="text" id="f-assignee" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
+        <button type="submit" class="btn-primary" id="save-btn">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
