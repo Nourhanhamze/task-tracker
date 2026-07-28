@@ -1,0 +1,32 @@
+# Secrets and local env
+.env
+.env.*
+*.pem
+*.key
+
+# Version control
+.git
+.gitignore
+
+# Python virtual environments and caches
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Not needed at runtime (kept in the repo, not the image)
+tests/
+frontend/
+docs/
+.github/
+README.md
+AGENTS.md
+*.md
+
+# Local machine / editor files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
