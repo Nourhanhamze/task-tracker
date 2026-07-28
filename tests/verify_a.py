@@ -1,22 +1,30 @@
+import sys
+
 from pydantic import ValidationError
 
 from app.models import TaskCreate, TaskPriority, TaskStatus, TaskUpdate
 
+_failures = 0
+
 
 def expect_fail(label, fn):
+    global _failures
     try:
         fn()
         print(f"FAIL: {label} — value was accepted but should have been rejected")
+        _failures += 1
     except ValidationError:
         print(f"PASS: {label}")
 
 
 def expect_ok(label, fn):
+    global _failures
     try:
         fn()
         print(f"PASS: {label}")
     except Exception as e:
         print(f"FAIL: {label} — {e}")
+        _failures += 1
 
 
 # 1. Whitespace title rejected
@@ -59,3 +67,7 @@ expect_fail(
 expect_fail("invalid status rejected", lambda: TaskCreate(title="x", status="Whatever"))
 
 print("--- Part A verifications complete ---")
+
+if _failures:
+    print(f"{_failures} check(s) failed")
+    sys.exit(1)
