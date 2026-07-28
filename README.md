@@ -1,7 +1,9 @@
 # Task Tracker
 
 A small Kanban-style task tracker: a FastAPI backend with an in-memory store, and
-a vanilla-JS frontend (no build step, no framework).
+a vanilla-JS frontend (no build step, no framework). See
+[docs/decisions/in-memory-task-storage.md](docs/decisions/in-memory-task-storage.md)
+for why storage is a plain dict rather than a database.
 
 Built across the AI-Assisted Coding course: Modules 1-3 (backend + frontend),
 the Mid-Course Sprint (due dates + overdue filter, tags/labels — see
