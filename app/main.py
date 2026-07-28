@@ -184,7 +184,7 @@ def patch_task(task_id: str, payload: TaskUpdate) -> TaskResponse:
     existing = _get_task_or_404(task_id)
 
     if payload.status is not None:
-        if False:  # CI BREAK TEST: transition validation disabled on purpose
+        if not validate_status_transition(existing.status, payload.status):
             raise HTTPException(
                 status_code=422,
                 detail=f"Invalid status transition from {existing.status.value} to {payload.status.value}",
