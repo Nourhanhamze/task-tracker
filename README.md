@@ -7,6 +7,19 @@ Built as the Modules 1-3 project for the AI-Assisted Coding course, then extende
 with two features (due dates + overdue filter, tags/labels) for the Mid-Course
 Project Sprint. See [docs/midcourse/](docs/midcourse/) for the sprint documentation.
 
+## Features
+
+- Kanban board (To Do / In Progress / Done) with priority-sorted cards,
+  drag-and-drop status updates, and a create/edit modal.
+- Status transitions are enforced by the backend (`app/business_rules.py`),
+  not just hidden in the UI.
+- **Due dates + overdue filter**: optional `due_date` on a task; cards past
+  their due date (and not Done) show a red "Overdue" pill; toolbar checkbox
+  filters the board to overdue tasks only; `GET /tasks?overdue=true`.
+- **Tags/labels**: optional `tags` list per task (max 10 tags, 30 chars
+  each, empty tags rejected); shown as chips on cards; toolbar text box
+  filters by tag (case-insensitive); `GET /tasks?tag=<name>`.
+
 ## Project structure
 
 ```

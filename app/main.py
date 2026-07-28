@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import storage
-from app.business_rules import validate_status_transition
+from app.business_rules import compute_overdue, validate_status_transition
 from app.models import TaskCreate, TaskPriority, TaskResponse, TaskStatus, TaskUpdate
 
 app = FastAPI(title="Task Tracker API")
@@ -23,6 +23,20 @@ app.add_middleware(
 )
 
 
+def _with_overdue(task: TaskResponse) -> TaskResponse:
+    overdue = compute_overdue(task.due_date, task.status)
+    if overdue == task.overdue:
+        return task
+    return task.model_copy(update={"overdue": overdue})
+
+
+def _get_task_or_404(task_id: str) -> TaskResponse:
+    task = storage.get_task_by_id(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -30,35 +44,37 @@ def health() -> dict:
 
 @app.post("/tasks", response_model=TaskResponse, status_code=201)
 def create_task(payload: TaskCreate) -> TaskResponse:
-    return storage.add_task(payload)
+    return _with_overdue(storage.add_task(payload))
 
 
 @app.get("/tasks", response_model=list[TaskResponse])
 def list_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
+    tag: Optional[str] = None,
+    overdue: Optional[bool] = None,
 ) -> list[TaskResponse]:
-    tasks = storage.get_all_tasks()
+    tasks = [_with_overdue(t) for t in storage.get_all_tasks()]
     if status is not None:
         tasks = [t for t in tasks if t.status == status]
     if priority is not None:
         tasks = [t for t in tasks if t.priority == priority]
+    if tag is not None:
+        needle = tag.strip().lower()
+        tasks = [t for t in tasks if needle in [x.lower() for x in t.tags]]
+    if overdue is not None:
+        tasks = [t for t in tasks if t.overdue == overdue]
     return tasks
 
 
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task(task_id: str) -> TaskResponse:
-    task = storage.get_task_by_id(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    return _with_overdue(_get_task_or_404(task_id))
 
 
 @app.patch("/tasks/{task_id}", response_model=TaskResponse)
 def patch_task(task_id: str, payload: TaskUpdate) -> TaskResponse:
-    existing = storage.get_task_by_id(task_id)
-    if existing is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+    existing = _get_task_or_404(task_id)
 
     if payload.status is not None:
         if not validate_status_transition(existing.status, payload.status):
@@ -69,7 +85,7 @@ def patch_task(task_id: str, payload: TaskUpdate) -> TaskResponse:
 
     updated = storage.update_task(task_id, payload)
     assert updated is not None
-    return updated
+    return _with_overdue(updated)
 
 
 @app.delete("/tasks/{task_id}", status_code=204, response_class=Response)

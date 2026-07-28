@@ -168,6 +168,8 @@
 <header>
   <h1>Task Tracker</h1>
   <div class="toolbar">
+    <input type="text" id="tag-filter" placeholder="Filter by tag..." />
+    <label><input type="checkbox" id="overdue-filter" /> Overdue only</label>
     <button class="btn-primary" id="new-task-btn">+ New Task</button>
   </div>
 </header>
@@ -223,6 +225,16 @@
       <div class="field">
         <label for="f-assignee">Assignee</label>
         <input type="text" id="f-assignee" />
+      </div>
+      <div class="field">
+        <label for="f-due-date">Due date</label>
+        <input type="date" id="f-due-date" />
+        <span class="field-error" id="f-due-date-error"></span>
+      </div>
+      <div class="field">
+        <label for="f-tags">Tags (comma-separated)</label>
+        <input type="text" id="f-tags" placeholder="frontend, urgent" />
+        <span class="field-error" id="f-tags-error"></span>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>

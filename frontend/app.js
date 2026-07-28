@@ -9,6 +9,8 @@ const form = document.getElementById("task-form");
 const modalTitle = document.getElementById("modal-title");
 const formError = document.getElementById("form-error");
 const titleError = document.getElementById("f-title-error");
+const tagFilterInput = document.getElementById("tag-filter");
+const overdueFilterCheckbox = document.getElementById("overdue-filter");
 
 let tasks = [];
 let editingTaskId = null;
@@ -28,7 +30,13 @@ function hideBanner() {
 async function fetchTasks() {
   showBanner("Loading tasks…", "loading");
   try {
-    const res = await fetch(`${API_BASE}/tasks`);
+    const params = new URLSearchParams();
+    const tag = tagFilterInput.value.trim();
+    if (tag) params.set("tag", tag);
+    if (overdueFilterCheckbox.checked) params.set("overdue", "true");
+    const query = params.toString();
+
+    const res = await fetch(`${API_BASE}/tasks${query ? `?${query}` : ""}`);
     if (!res.ok) throw new Error(`Request failed with ${res.status}`);
     tasks = await res.json();
     hideBanner();
@@ -50,14 +58,24 @@ function sortTasks(list) {
 function cardHtml(task) {
   const desc = task.description ? `<div class="card-desc">${escapeHtml(task.description)}</div>` : "";
   const assignee = task.assignee ? `<span class="assignee">${escapeHtml(task.assignee)}</span>` : "";
+  const overduePill = task.overdue ? `<span class="pill overdue">Overdue</span>` : "";
+  const dueDate = task.due_date
+    ? `<div class="due-date${task.overdue ? " overdue-text" : ""}">Due ${escapeHtml(task.due_date)}</div>`
+    : "";
+  const tags = (task.tags || [])
+    .map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`)
+    .join("");
   return `
     <article class="card" draggable="true" data-id="${task.id}">
       <div class="card-title">${escapeHtml(task.title)}</div>
       ${desc}
       <div class="card-meta">
         <span class="pill priority-${task.priority}">${task.priority}</span>
+        ${overduePill}
         ${assignee}
       </div>
+      ${dueDate}
+      <div class="card-meta">${tags}</div>
       <div class="card-actions">
         <button type="button" class="btn-secondary edit-btn" data-id="${task.id}">Edit</button>
       </div>
@@ -154,6 +172,8 @@ function openEditModal(taskId) {
   document.getElementById("f-status").value = task.status;
   document.getElementById("f-priority").value = task.priority;
   document.getElementById("f-assignee").value = task.assignee || "";
+  document.getElementById("f-due-date").value = task.due_date || "";
+  document.getElementById("f-tags").value = (task.tags || []).join(", ");
   clearErrors();
   overlay.hidden = false;
 }
@@ -179,6 +199,23 @@ overlay.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !overlay.hidden) closeModal();
 });
+tagFilterInput.addEventListener("input", debounce(fetchTasks, 250));
+overdueFilterCheckbox.addEventListener("change", fetchTasks);
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+function parseTags(rawValue) {
+  return rawValue
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+}
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -190,12 +227,16 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
+  const dueDateValue = document.getElementById("f-due-date").value;
+
   const payload = {
     title,
     description: document.getElementById("f-description").value,
     status: document.getElementById("f-status").value,
     priority: document.getElementById("f-priority").value,
     assignee: document.getElementById("f-assignee").value.trim() || null,
+    due_date: dueDateValue || null,
+    tags: parseTags(document.getElementById("f-tags").value),
   };
 
   const isEdit = Boolean(editingTaskId);

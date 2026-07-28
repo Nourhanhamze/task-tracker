@@ -9,13 +9,9 @@ def add_task(payload: TaskCreate) -> TaskResponse:
     now = utc_now()
     task = TaskResponse(
         id=new_task_id(),
-        title=payload.title,
-        description=payload.description,
-        status=payload.status,
-        priority=payload.priority,
-        assignee=payload.assignee,
         created_at=now,
         updated_at=now,
+        **payload.model_dump(),
     )
     _tasks[task.id] = task
     return task
