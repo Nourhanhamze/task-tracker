@@ -108,6 +108,7 @@ function renderBoard() {
 function attachCardListeners() {
   document.querySelectorAll(".card").forEach((card) => {
     card.addEventListener("dragstart", onDragStart);
+    card.addEventListener("dragend", onDragEnd);
   });
   document.querySelectorAll(".edit-btn").forEach((btn) => {
     btn.addEventListener("click", () => openEditModal(btn.dataset.id));
@@ -116,6 +117,11 @@ function attachCardListeners() {
 
 function onDragStart(e) {
   e.dataTransfer.setData("text/plain", e.currentTarget.dataset.id);
+  e.currentTarget.classList.add("dragging");
+}
+
+function onDragEnd(e) {
+  e.currentTarget.classList.remove("dragging");
 }
 
 document.querySelectorAll(".column").forEach((column) => {
