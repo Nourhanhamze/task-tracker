@@ -1,3 +1,10 @@
+"""Pydantic v2 request/response models for the Task Tracker API.
+
+TaskCreate/TaskUpdate are client-input models (`extra="forbid"`, so
+server-managed fields like `id`/`created_at`/`overdue` cannot be set by a
+client). TaskResponse is what the API returns.
+"""
+
 from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
@@ -22,6 +29,18 @@ class TaskPriority(str, Enum):
 
 
 def _validate_title(value: str) -> str:
+    """Trim and validate a task title.
+
+    Args:
+        value: Raw title string.
+
+    Returns:
+        str: The trimmed title.
+
+    Raises:
+        ValueError: If empty/whitespace-only after trimming, or over 200
+            characters.
+    """
     stripped = value.strip()
     if not stripped:
         raise ValueError("title must not be empty or whitespace-only")
@@ -31,6 +50,19 @@ def _validate_title(value: str) -> str:
 
 
 def _validate_tags(value: list[str]) -> list[str]:
+    """Trim and validate a list of tags.
+
+    Args:
+        value: Raw tag strings.
+
+    Returns:
+        list[str]: Trimmed tags, same order, same count.
+
+    Raises:
+        ValueError: If more than `MAX_TAGS` tags are given, any tag is
+            empty/whitespace-only after trimming, or any tag exceeds
+            `MAX_TAG_LENGTH` characters.
+    """
     if len(value) > MAX_TAGS:
         raise ValueError(f"at most {MAX_TAGS} tags are allowed")
     cleaned: list[str] = []
@@ -45,6 +77,13 @@ def _validate_tags(value: list[str]) -> list[str]:
 
 
 class TaskCreate(BaseModel):
+    """Client payload for `POST /tasks`.
+
+    `id`, `created_at`, `updated_at`, and `overdue` are server-managed and
+    intentionally absent here; `extra="forbid"` means sending them (or any
+    other unknown field) is a 422, not a silently-ignored no-op.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     title: str
@@ -67,6 +106,14 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
+    """Client payload for `PATCH /tasks/{id}`.
+
+    Every field is optional so a request can update just one field; a
+    field left out of the request body is left unchanged by
+    `storage.update_task` (it uses `model_dump(exclude_unset=True)`, which
+    distinguishes "not sent" from "sent as null").
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     title: Optional[str] = None
@@ -93,6 +140,13 @@ class TaskUpdate(BaseModel):
 
 
 class TaskResponse(BaseModel):
+    """API response shape for a task.
+
+    `overdue` is always recomputed by `app.main._with_overdue` before a
+    response is returned - the value coming out of `storage` may be stale,
+    since it depends on the current date, not just the last write.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     id: str
@@ -109,8 +163,18 @@ class TaskResponse(BaseModel):
 
 
 def new_task_id() -> str:
+    """Generate a new task id.
+
+    Returns:
+        str: A 32-character hex UUID4, e.g. `"e7df5b0b558642ed9d41200d6bfb0fe9"`.
+    """
     return uuid4().hex
 
 
 def utc_now() -> datetime:
+    """Current time, timezone-aware UTC.
+
+    Returns:
+        datetime: `datetime.now(timezone.utc)`.
+    """
     return datetime.now(timezone.utc)
