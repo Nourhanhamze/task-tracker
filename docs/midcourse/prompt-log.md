@@ -140,3 +140,40 @@ because `storage.update_task()` already used
 `payload.model_dump(exclude_unset=True)` from the Module 2 baseline — a case
 where the existing design already did the right thing and the test just
 confirms it, rather than driving a new fix.
+
+## Facilitator feedback fix (resubmission)
+
+### Prompt 7
+
+> The facilitator rejected this submission with: "Sending an explicit null
+> value for title in a task update is accepted with a 200 response and
+> stores the invalid value. This allows a task to end up with no title.
+> This case is not covered by any tests." Reproduce this first, then check
+> whether the same bug exists on any other `TaskUpdate` field before
+> fixing anything.
+
+**What AI returned:** reproduced the exact bug with a two-line
+`TestClient` script first (`PATCH {"title": null}` → `200`, stored
+`title: null`), then ran the same explicit-null probe against every other
+field before writing any fix. That scope check found the identical bug on
+`description`, `status`, `priority`, and `tags` too (all non-nullable on
+`TaskResponse`), while confirming `assignee`/`due_date` were correctly
+unaffected (they're genuinely nullable). Root cause: the `TaskUpdate`
+validators for those fields returned `None` unchanged instead of
+distinguishing "field omitted" from "field explicitly sent as null" — a
+distinction Pydantic v2 actually makes for you (field validators don't
+run at all when a field is omitted and its default is used, only when a
+value, including an explicit `null`, is actually provided), but the old
+validator code wasn't relying on that mechanism.
+
+**Accepted / edited / rejected:** accepted the root-cause framing, but
+edited the fix to cover all five affected fields in one pass rather than
+patching `title` alone and leaving the other four for the next facilitator
+pass to catch individually. Before applying the fix, verified the "field
+omitted still means unchanged" mechanism with a standalone 15-line Pydantic
+script (not just assumed it), since getting that wrong would have broken
+every existing partial-update test. Added `tests/test_null_updates.py` (9
+tests) and ran a Break Test — reverted the fix, confirmed exactly the 6
+tests tied to the bug failed and the 3 unrelated ones didn't, restored the
+fix. See `docs/midcourse/verification.md`'s "Facilitator feedback fix"
+section for the full before/after evidence.

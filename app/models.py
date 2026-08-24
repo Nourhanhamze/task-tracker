@@ -108,10 +108,16 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     """Client payload for `PATCH /tasks/{id}`.
 
-    Every field is optional so a request can update just one field; a
-    field left out of the request body is left unchanged by
-    `storage.update_task` (it uses `model_dump(exclude_unset=True)`, which
-    distinguishes "not sent" from "sent as null").
+    Every field defaults to `None` so a request can touch just one field;
+    an omitted field is left unchanged (see `storage.update_task`'s use of
+    `model_dump(exclude_unset=True)`). `None` is only a valid *value* for
+    `assignee` and `due_date`, which are genuinely nullable on
+    `TaskResponse` - sending them as `null` clears them. `title`,
+    `description`, `status`, and `priority` are NOT nullable on
+    `TaskResponse`, so an explicit `null` for any of those is rejected as
+    invalid input (422) rather than silently accepted and stored, which
+    would leave the task in a state its own response model claims is
+    impossible (e.g. a `TaskResponse.title: str` that's actually `None`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -126,16 +132,37 @@ class TaskUpdate(BaseModel):
 
     @field_validator("title")
     @classmethod
-    def validate_title(cls, value: Optional[str]) -> Optional[str]:
+    def validate_title(cls, value: Optional[str]) -> str:
         if value is None:
-            return value
+            raise ValueError("title must not be null")
         return _validate_title(value)
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, value: Optional[str]) -> str:
+        if value is None:
+            raise ValueError("description must not be null")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status_not_null(cls, value: Optional[TaskStatus]) -> TaskStatus:
+        if value is None:
+            raise ValueError("status must not be null")
+        return value
+
+    @field_validator("priority")
+    @classmethod
+    def validate_priority_not_null(cls, value: Optional[TaskPriority]) -> TaskPriority:
+        if value is None:
+            raise ValueError("priority must not be null")
+        return value
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+    def validate_tags(cls, value: Optional[list[str]]) -> list[str]:
         if value is None:
-            return value
+            raise ValueError("tags must not be null")
         return _validate_tags(value)
 
 

@@ -137,9 +137,81 @@ The test failed for the expected reason — the API accepted a `"   "` tag and
 returned `201` instead of `422`. Source restored; re-run confirmed
 `33 passed` again.
 
+## Facilitator feedback fix (resubmission)
+
+**Finding:** "Sending an explicit null value for title in a task update is
+accepted with a 200 response and stores the invalid value. This allows a
+task to end up with no title. This case is not covered by any tests."
+
+**Confirmed and reproduced first**, before touching anything:
+
+```python
+r = client.post("/tasks", json={"title": "Original title"})
+r2 = client.patch(f"/tasks/{r.json()['id']}", json={"title": None})
+# r2.status_code == 200, r2.json()["title"] is None
+```
+
+**Root cause:** `TaskUpdate.title` is `Optional[str] = None` so the field
+can be *omitted* from a PATCH (meaning "don't touch it"), but the old
+`validate_title` validator treated any `None` it saw the same way —
+including an explicitly-sent `null` — and passed it straight through
+instead of rejecting it. `storage.update_task` then wrote that `None`
+onto `TaskResponse.title`, which is typed `str`, via `model_copy(update=...)`,
+which does not re-validate. The result: a `TaskResponse` object whose own
+type annotation says `title: str` was actually holding `None`, silently.
+
+**Scope check — this was not just `title`.** Before fixing anything, the
+same explicit-null probe was run against every other `TaskUpdate` field
+that maps to a non-nullable `TaskResponse` field:
+
+```
+title=null       -> 200, title becomes None      (the reported bug)
+description=null -> 200, description becomes None (same bug)
+status=null      -> 200, status becomes None       (same bug)
+priority=null    -> 200, priority becomes None      (same bug)
+tags=null        -> 200, tags becomes None            (same bug)
+assignee=null    -> 200, assignee becomes None   <- correct: assignee IS nullable
+due_date=null    -> 200, due_date becomes None   <- correct: due_date IS nullable
+```
+
+Five fields shared the exact same root cause; two were fine because
+`assignee`/`due_date` are genuinely `Optional` on `TaskResponse` and
+`null` legitimately means "clear this field" for those.
+
+**Fix:** `app/models.py`'s `TaskUpdate` validators for `title`,
+`description`, `status`, `priority`, and `tags` now raise
+`ValueError` (→ 422) when the value is explicitly `None`, instead of
+passing it through. Verified this doesn't break the "omit a field = leave
+it unchanged" behavior every other PATCH test depends on, by checking
+Pydantic v2's actual behavior first: a field validator only runs when the
+client provides a value (including an explicit `null`) — it does **not**
+run when the field is simply absent from the request body and the default
+is used. So omitting `title` still skips the validator entirely and
+leaves the stored title untouched; only an explicit `"title": null` now
+gets caught.
+
+**New tests:** `tests/test_null_updates.py`, 9 tests — explicit-null
+rejected (422) for each of the 5 affected fields, a dedicated check that a
+rejected null-title PATCH doesn't corrupt the stored title, confirmation
+that `assignee`/`due_date` still correctly accept `null` as "clear this
+field," and confirmation that omitting a field from a PATCH still leaves
+it unchanged (the fix could easily have overcorrected and broken that).
+
+**Break Test:** `git stash`-ed the fix, reran `tests/test_null_updates.py`
+— 6 of 9 tests failed for the expected reason (`assert 200 == 422`), the 3
+unrelated ones (assignee, due_date, omitted-field) correctly kept passing.
+Restored the fix; all 9 pass again.
+
+```
+$ pytest tests/ -v
+42 passed, 1 warning in 0.32s
+```
+
+(33 previous + 9 new.)
+
 ## Final state
 
 ```
 $ python -m tests.verify_a   -> 8/8 PASS
-$ pytest tests/ -v            -> 33 passed, 1 warning in 0.30s
+$ pytest tests/ -v            -> 42 passed, 1 warning
 ```
