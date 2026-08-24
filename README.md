@@ -14,6 +14,67 @@ pass (CI, Docker, docs, security/governance review — see
 See [AGENTS.md](AGENTS.md) for the repo-level context AI coding agents should
 read before making changes here.
 
+## Final Project
+
+Branch reviewed: `final-project`
+
+### What this submission demonstrates
+
+- Existing Task Tracker app still runs inside the intended course scope —
+  no new product features (no comments, no auth, no production database).
+- CI (`.github/workflows/ci.yml`) runs the pytest suite on push and pull
+  request, with a real green→red→green proof, not just a passing run.
+- Docker image (`Dockerfile`, `.dockerignore`) is written and statically
+  verified against the release checklist; Docker itself isn't installed in
+  the environment this was built in, so no live build/run was performed —
+  see `docs/release-evidence.md` for exactly what was and wasn't checked,
+  recorded honestly rather than faked.
+- AI review, security, and ownership evidence is in `docs/`.
+
+### How to run locally
+
+```bash
+python -m venv venv
+source venv/Scripts/activate    # Windows Git Bash; venv\Scripts\activate on cmd/PowerShell
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+### How to run tests
+
+```bash
+python -m tests.verify_a
+pytest tests/ -v
+```
+
+### How to run with Docker
+
+```bash
+docker build -t task-tracker:dev .
+docker run --rm -d -p 8000:8000 --name tt-dev task-tracker:dev
+curl -i http://localhost:8000/health
+docker exec tt-dev whoami        # expect: app (not root)
+docker stop tt-dev
+```
+
+### Evidence files
+
+- [docs/release-evidence.md](docs/release-evidence.md)
+- [docs/final-ai-review.md](docs/final-ai-review.md)
+- [docs/ai-playbook.md](docs/ai-playbook.md)
+
+### AI assistance summary
+
+AI helped draft or review: CI, Docker, documentation, security review, and
+debugging (the mid-course facilitator's null-update finding).
+I verified the work by: running the actual test suite at every step, reading
+`/openapi.json` before/after doc changes, watching real GitHub Actions runs
+change status (not just reading the YAML), and reproducing every reported
+bug myself before fixing it.
+One AI suggestion I rejected: a `StorageBackend` protocol/interface "for
+future flexibility" with no second implementation to justify it — see
+`docs/decisions/in-memory-task-storage.md`.
+
 ## Features
 
 - Kanban board (To Do / In Progress / Done) with priority-sorted cards,
@@ -74,7 +135,7 @@ serve the frontend from a different port, add that origin to the
 
 ```bash
 python -m tests.verify_a      # 8 Pydantic model checks, prints PASS/FAIL, exits non-zero on failure
-pytest tests/ -v               # full API test suite (33 tests)
+pytest tests/ -v               # full API test suite (42 tests)
 ```
 
 ## Run in Docker
@@ -124,6 +185,8 @@ confirmed to fail CI, then reverted).
 | [docs/midcourse/](docs/midcourse/) | Mid-course feature sprint (due dates, tags) |
 | [docs/decisions/](docs/decisions/) | Technical decision notes |
 | [docs/verification.md](docs/verification.md) | CI, Docker, and claim-vs-reality evidence |
+| [docs/release-evidence.md](docs/release-evidence.md) | Final-project release checklist: baseline, CI, Docker, doc claim-vs-reality |
+| [docs/final-ai-review.md](docs/final-ai-review.md) | Final-project AI review/security mini-log + ownership statement |
 | [docs/review-log.md](docs/review-log.md) | AI-assisted code review, triaged Useful/Noise/Wrong |
 | [docs/security-review.md](docs/security-review.md) | AI + manual security findings, graded and reconciled |
 | [docs/governance-worksheet.md](docs/governance-worksheet.md) | What was shared with/received from AI, risk-classified |
