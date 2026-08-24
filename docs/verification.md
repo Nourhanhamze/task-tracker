@@ -74,3 +74,28 @@ pytest tests/ -v                                -> 33 passed
 No step required guessing an undocumented flag or path. This is the same
 "would a new teammate be able to run the app with only these instructions"
 check the Module 4 notes ask for.
+
+## Addendum: a real bug the security review didn't catch
+
+After this document was first written, the facilitator grading the
+Mid-Course submission found that `PATCH /tasks/{id}` with an explicit
+`{"title": null}` returned `200` and stored an invalid `null` title —
+uncovered by any test at the time. Reproducing it and checking for the
+same pattern elsewhere found the identical bug on `description`,
+`status`, `priority`, and `tags` too (all non-nullable on `TaskResponse`
+but silently accepted an explicit `null` in a `PATCH`).
+
+`docs/security-review.md`'s manual scan and the AI audit it graded did
+**not** catch this — the review focused on unbounded string lengths,
+CORS, auth, and secrets, and never specifically probed "what happens if a
+non-nullable field is sent as explicit `null`." That's a real gap in the
+review's coverage, not just in the original code, and it's recorded here
+rather than quietly patched: a security/correctness review is only as
+good as the categories of input it thinks to try, and "explicit null on a
+supposedly-required field" wasn't one of them.
+
+Full reproduction, root-cause analysis, fix, and Break Test evidence are
+in `docs/midcourse/verification.md`'s "Facilitator feedback fix" section
+(the fix was made on `mid-course-project` and merged into this branch).
+9 new tests in `tests/test_null_updates.py`. Full suite: **42 passed**
+(33 + 9), superseding the `33 passed` figure earlier in this document.
