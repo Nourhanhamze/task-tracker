@@ -27,11 +27,13 @@
   Confirmed live (not just claimed) by fetching that exact URL directly.
 - Test command used by CI: `python -m tests.verify_a` then `pytest tests/ -v`
   (two separate steps, both must exit 0 for the job to pass).
-- Shortcut check (read directly from `.github/workflows/ci.yml`): no
-  `continue-on-error`, no `|| true`, no `--exit-zero`-style flag, pytest is
-  never skipped, Python version is pinned to the exact string `"3.11"` (not
-  `latest` or unpinned). Triggers cover `push` on all branches and `pull_request`
-  into `main`.
+- Shortcut check (read directly from `.github/workflows/ci.yml`, line by
+  line): no `continue-on-error`, no `|| true`, no `--exit-zero`-style flag,
+  pytest is never skipped, Python version is pinned to the exact string
+  `"3.11"` (not `latest` or unpinned), and dependency installation is an
+  explicit step (`pip install -r requirements.txt`) that runs before the
+  test steps, not assumed/skipped. Triggers cover `push` on all branches
+  and `pull_request` into `main`.
 - Intentional red-run evidence (optional for this brief; already produced
   during Module 4-equivalent work): commit `d932a2f` deliberately disabled
   the status-transition check, pushed, and the CI badge for `final-project`

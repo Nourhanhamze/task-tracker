@@ -33,11 +33,16 @@ detail in `docs/midcourse/verification.md` and `docs/release-evidence.md`.
 
 - Repo-specific stack and commands included: **yes** — Python 3.11/
   FastAPI/Pydantic v2/pytest, exact `uvicorn`/`pytest`/`docker` commands.
-- Docs-first/read-first guardrail included: **yes** — "Module 5
-  boundaries" section: "Prefer read-only analysis... Required edits should
-  be in `docs/`... Reject or flag unexpected `app/` changes."
+- Docs-first/read-first guardrail included: **yes** — checked the actual
+  heading, it's called "Review expectations for AI agents," not "Module 5
+  boundaries" (an earlier draft of this section cited the wrong heading
+  name and was corrected after re-reading `AGENTS.md` directly, exactly
+  the kind of claim-vs-reality check this document is supposed to model):
+  "Prefer read-only analysis for review/security/planning/governance
+  tasks; required outputs for those tasks live under `docs/`. Flag (don't
+  silently make) any edit outside `docs/` during those tasks."
 - Unexpected app/frontend edits rule included: **yes** — same section,
-  plus the "Do-not rules" list (no auth/database/deployment scope creep
+  plus the separate "Do-not rules" heading (no auth/database/deployment scope creep
   without explicit approval).
 
 ## AI code review mini-log
