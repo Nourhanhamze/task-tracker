@@ -46,20 +46,55 @@
 
 - Build command: `docker build -t task-tracker:dev .`
 - Run command: `docker run --rm -d -p 8000:8000 --name tt-dev task-tracker:dev`
-- `/health` check: **not run against a live container.** Docker is not
+- `/health` check: **not run against a live container** — Docker is not
   installed in the environment this repository was built in (checked: no
-  `docker` on `PATH`, no Docker Desktop install directory). Rather than
-  fabricate `docker build`/`docker run`/`curl` output, this is recorded as
-  an honest gap. What *was* done instead: the `Dockerfile` was read
-  line-by-line against the checklist below, and `docker build`'s syntax was
-  checked by hand (matching base image tags across both stages, correct
-  `COPY --from=builder` path, `pip install --prefix=/install` landing at
-  the same `site-packages` path the runtime stage's Python actually uses
-  since both stages pin the identical `python:3.11-slim` tag).
+  `docker` on `PATH`, no Docker Desktop install directory; a real install
+  attempt via `winget install Docker.DockerDesktop --silent` was made and
+  produced no working `docker` command after several minutes; `wsl
+  --status` confirmed WSL2 also isn't installed. Both Docker Desktop and
+  WSL2 need admin elevation and a system restart to fully initialize,
+  which isn't achievable non-interactively here). Rather than fabricate
+  `docker build`/`docker run`/`curl` output, this is recorded as an honest
+  gap — **but it was not left as pure static reading either.** A
+  filesystem-level simulation of what the multi-stage build actually
+  produces was run for real:
+
+  1. Replicated the builder stage exactly: `pip install --no-cache-dir
+     --prefix=<isolated dir> -r requirements.txt` — succeeded, resolving
+     fastapi/uvicorn/pydantic/pytest/httpx and their transitive deps into
+     an isolated `site-packages` completely outside this project's own
+     `venv/`.
+  2. Replicated the runtime stage's file set exactly: copied *only*
+     `app/` into an empty scratch directory — nothing else, matching
+     `COPY app ./app` with no other `COPY` instructions.
+  3. Started `uvicorn app.main:app --host 0.0.0.0 --port 8000` — the
+     Dockerfile's literal `CMD`, no `--reload` — with `PYTHONPATH` pointed
+     *only* at the isolated builder-stage packages, from *only* the
+     scratch directory containing just `app/`. It started clean:
+     `Application startup complete.`
+  4. `curl http://localhost:8001/health` (port changed to avoid clashing
+     with the real dev server) returned **`200`**, and a full
+     `POST`/`GET /tasks` round-trip worked — proving the app genuinely
+     runs end-to-end using nothing but what the image's `COPY`
+     instructions would actually contain.
+
+  This is real, run evidence for "does the dependency-install approach
+  work" and "is `app/` alone sufficient to run the server," which is most
+  of what a `docker build && docker run` would additionally confirm. What
+  it does **not** cover: the actual Linux `python:3.11-slim` base image
+  (this ran on Windows Python of the same version — package resolution
+  matched, but OS-level behavior wasn't tested), the `USER app` /
+  non-root permission enforcement (no container user namespace exists
+  outside a real container runtime), and the `HEALTHCHECK` instruction
+  itself (never executed by anything outside a container).
 - Non-root check: `Dockerfile` creates a system group/user (`groupadd
   --system app && useradd --system --gid app --no-create-home app`) and
   declares `USER app` before `CMD`. **Declared, not verified live** — the
-  equivalent of `docker exec tt-dev whoami` printing `app` was not run.
+  filesystem simulation above cannot exercise Linux user/permission
+  enforcement (that only exists inside a real container runtime), so the
+  equivalent of `docker exec tt-dev whoami` printing `app` was still not
+  run. This remains the one genuinely uncloseable gap without an actual
+  container runtime.
 - No-baked-secrets check: `.dockerignore` explicitly excludes `.env`,
   `.env.*`, `*.pem`, `*.key`, `.git`, `venv/`, `.venv/`, caches, and
   `tests/`/`docs/`/`README.md`/`*.md`. The `Dockerfile` only ever `COPY`s

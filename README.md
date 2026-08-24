@@ -24,11 +24,17 @@ Branch reviewed: `final-project`
   no new product features (no comments, no auth, no production database).
 - CI (`.github/workflows/ci.yml`) runs the pytest suite on push and pull
   request, with a real green→red→green proof, not just a passing run.
-- Docker image (`Dockerfile`, `.dockerignore`) is written and statically
-  verified against the release checklist; Docker itself isn't installed in
-  the environment this was built in, so no live build/run was performed —
-  see `docs/release-evidence.md` for exactly what was and wasn't checked,
-  recorded honestly rather than faked.
+- Docker image (`Dockerfile`, `.dockerignore`) is written and verified
+  against the release checklist; Docker itself isn't installed in the
+  environment this was built in (a real install attempt was made and did
+  not succeed), so no build/run happened inside an actual container — but
+  the multi-stage build's dependency-install approach and the "app/ alone
+  is sufficient to run the server" claim were both verified for real via
+  a filesystem-level simulation (isolated `pip install --prefix`, then
+  `uvicorn` started from a directory containing only `app/`, `/health`
+  returned 200). Non-root enforcement is the one thing that genuinely
+  needs a real container runtime and stays unverified. Full detail in
+  `docs/release-evidence.md`, recorded honestly rather than faked.
 - AI review, security, and ownership evidence is in `docs/`.
 
 ### How to run locally

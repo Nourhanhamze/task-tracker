@@ -122,8 +122,14 @@ Actions runs change status, not from reading a YAML file and assuming it
 worked; the null-update fix came from reproducing the facilitator's exact
 scenario myself before touching any code, then checking whether the same
 bug existed elsewhere instead of patching only the reported symptom; the
-Docker section says plainly that no live container was ever run, instead
-of writing `docker exec` output that never happened. Where I accepted an
+Docker section says plainly that no real container runtime was ever
+available (a real `winget install` attempt was made and failed, not just
+assumed impossible), and distinguishes what a filesystem-level simulation
+did genuinely prove (the dependency-install approach works, `app/` alone
+is enough to run the server, `/health` really returns 200) from what only
+an actual container can prove (non-root enforcement) — instead of writing
+`docker exec` output that never happened, or claiming nothing could be
+checked at all when part of it actually could. Where I accepted an
 AI suggestion, I can point to the command or test that confirmed it
 (`_get_task_or_404`, the `payload.model_dump()` fix); where I rejected
 one, I can explain why in my own words (the `StorageBackend` protocol,
