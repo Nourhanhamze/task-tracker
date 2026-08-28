@@ -122,14 +122,17 @@ Actions runs change status, not from reading a YAML file and assuming it
 worked; the null-update fix came from reproducing the facilitator's exact
 scenario myself before touching any code, then checking whether the same
 bug existed elsewhere instead of patching only the reported symptom; the
-Docker section says plainly that no real container runtime was ever
-available (a real `winget install` attempt was made and failed, not just
-assumed impossible), and distinguishes what a filesystem-level simulation
-did genuinely prove (the dependency-install approach works, `app/` alone
-is enough to run the server, `/health` really returns 200) from what only
-an actual container can prove (non-root enforcement) — instead of writing
-`docker exec` output that never happened, or claiming nothing could be
-checked at all when part of it actually could. Where I accepted an
+Docker section went through the same discipline the whole way: when no
+container runtime was available, it said so plainly and ran a filesystem-
+level simulation instead of fabricating `docker exec` output; when a real
+install attempt failed with a genuine OS-level error (a locked socket
+file, not just "it didn't work"), that specific error was recorded, not
+smoothed over; and once a working Docker daemon actually came up, every
+number in `docs/release-evidence.md` — the `200` from `/health`, `whoami`
+printing `app`, the `HEALTHCHECK` reporting `healthy`, the 61.5MB image
+size — is real, observed output from that run, not a retroactive
+assumption that the earlier simulation "probably" would have matched.
+Where I accepted an
 AI suggestion, I can point to the command or test that confirmed it
 (`_get_task_or_404`, the `payload.model_dump()` fix); where I rejected
 one, I can explain why in my own words (the `StorageBackend` protocol,

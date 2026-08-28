@@ -44,57 +44,70 @@
 
 ## Docker evidence
 
+**Built and run for real, against an actual Docker daemon, on 2026-08-28.**
+(Earlier drafts of this document recorded an honest gap here — Docker
+wasn't installed in the original build environment, two install attempts
+failed, and a filesystem-level simulation was run as a partial substitute.
+That history is kept below for transparency, but it's now superseded by
+the real results in this section.)
+
 - Build command: `docker build -t task-tracker:dev .`
+- Build result: succeeded. Full layer-by-layer log confirms both stages
+  ran as written — `python:3.11-slim` pulled for both `builder` and
+  `runtime`, `pip install --no-cache-dir --prefix=/install -r
+  requirements.txt` resolved and installed fastapi/uvicorn/pydantic/
+  pytest/httpx and all transitive deps inside the builder stage,
+  `COPY --from=builder /install /usr/local` and `COPY app ./app` ran,
+  `chown -R app:app /app` ran, image tagged `task-tracker:dev`.
 - Run command: `docker run --rm -d -p 8000:8000 --name tt-dev task-tracker:dev`
-- `/health` check: **not run against a live container** — Docker is not
-  installed in the environment this repository was built in (checked: no
-  `docker` on `PATH`, no Docker Desktop install directory; a real install
-  attempt via `winget install Docker.DockerDesktop --silent` was made and
-  produced no working `docker` command after several minutes; `wsl
-  --status` confirmed WSL2 also isn't installed. Both Docker Desktop and
-  WSL2 need admin elevation and a system restart to fully initialize,
-  which isn't achievable non-interactively here). Rather than fabricate
-  `docker build`/`docker run`/`curl` output, this is recorded as an honest
-  gap — **but it was not left as pure static reading either.** A
-  filesystem-level simulation of what the multi-stage build actually
-  produces was run for real:
+- Run result: container started (`docker ps` showed `Up ... (health:
+  starting)`, then `Up ... (healthy)` ~8s later once the Dockerfile's own
+  `HEALTHCHECK` instruction passed for the first time).
+- **`/health` check: `curl -i http://localhost:8000/health` → real,
+  observed `HTTP/1.1 200 OK`**, body
+  `{"status":"ok","timestamp":"2026-08-28T07:01:49.815196Z"}`.
+- Full CRUD round-trip against the live container: `POST /tasks` → `201
+  Created`; `GET /tasks` → `200` with the created task. Container logs
+  (`docker logs tt-dev`) show exactly this sequence with no errors:
+  `Application startup complete.` → `GET /health 200` → `POST /tasks 201`
+  → `GET /tasks 200`.
+- **Non-root check — real, not declared-only:**
+  `docker exec tt-dev whoami` → **`app`**.
+  `docker exec tt-dev id` → **`uid=999(app) gid=999(app) groups=999(app)`**.
+  Confirmed the container is genuinely not running as root.
+- **`HEALTHCHECK` instruction check — real:** `docker inspect --format=
+  '{{json .State.Health}}' tt-dev` → `{"Status":"healthy","FailingStreak":0,
+  ...}` — the Dockerfile's own health probe (not just my external `curl`)
+  is passing inside the container.
+- Image size: `docker images task-tracker:dev` → **61.5MB content size**
+  (259MB disk usage including layer overhead) — consistent with a slim,
+  multi-stage build that doesn't carry build tooling into the runtime
+  image.
+- Container stopped cleanly: `docker stop tt-dev` (auto-removed per `--rm`).
 
-  1. Replicated the builder stage exactly: `pip install --no-cache-dir
-     --prefix=<isolated dir> -r requirements.txt` — succeeded, resolving
-     fastapi/uvicorn/pydantic/pytest/httpx and their transitive deps into
-     an isolated `site-packages` completely outside this project's own
-     `venv/`.
-  2. Replicated the runtime stage's file set exactly: copied *only*
-     `app/` into an empty scratch directory — nothing else, matching
-     `COPY app ./app` with no other `COPY` instructions.
-  3. Started `uvicorn app.main:app --host 0.0.0.0 --port 8000` — the
-     Dockerfile's literal `CMD`, no `--reload` — with `PYTHONPATH` pointed
-     *only* at the isolated builder-stage packages, from *only* the
-     scratch directory containing just `app/`. It started clean:
-     `Application startup complete.`
-  4. `curl http://localhost:8001/health` (port changed to avoid clashing
-     with the real dev server) returned **`200`**, and a full
-     `POST`/`GET /tasks` round-trip worked — proving the app genuinely
-     runs end-to-end using nothing but what the image's `COPY`
-     instructions would actually contain.
+<details>
+<summary>Earlier attempts before Docker was available (kept for transparency)</summary>
 
-  This is real, run evidence for "does the dependency-install approach
-  work" and "is `app/` alone sufficient to run the server," which is most
-  of what a `docker build && docker run` would additionally confirm. What
-  it does **not** cover: the actual Linux `python:3.11-slim` base image
-  (this ran on Windows Python of the same version — package resolution
-  matched, but OS-level behavior wasn't tested), the `USER app` /
-  non-root permission enforcement (no container user namespace exists
-  outside a real container runtime), and the `HEALTHCHECK` instruction
-  itself (never executed by anything outside a container).
-- Non-root check: `Dockerfile` creates a system group/user (`groupadd
-  --system app && useradd --system --gid app --no-create-home app`) and
-  declares `USER app` before `CMD`. **Declared, not verified live** — the
-  filesystem simulation above cannot exercise Linux user/permission
-  enforcement (that only exists inside a real container runtime), so the
-  equivalent of `docker exec tt-dev whoami` printing `app` was still not
-  run. This remains the one genuinely uncloseable gap without an actual
-  container runtime.
+Two real install attempts were made before Docker was available: `winget
+install Docker.DockerDesktop --silent` (ran 5+ minutes, no working
+`docker` command), and a check of WSL2 (`wsl --status`, not installed at
+the time). Docker Desktop was then installed with the user's own
+interactive install; on first launch the backend crashed with a real,
+specific error — a stale `sailor-ingest.sock` file left over from a prior
+failed instance, `The file cannot be accessed by the system` — which
+resisted `rm`, PowerShell's `Remove-Item`, and `cmd /c del` even after
+killing all Docker processes and running `wsl --shutdown`. The user
+re-launched Docker Desktop directly (likely via its own recovery path);
+the daemon came up clean on that attempt and the real build/run above
+followed immediately. Before Docker was available at all, a filesystem-
+level simulation was run as a partial substitute: replicating the
+builder stage's `pip install --prefix` into an isolated directory,
+copying only `app/` into an empty scratch directory, and starting the
+literal `CMD` against that isolated setup — it worked (`/health` → 200),
+which is why the real build above had a good prior signal it would also
+succeed once Docker was actually running.
+
+</details>
 - No-baked-secrets check: `.dockerignore` explicitly excludes `.env`,
   `.env.*`, `*.pem`, `*.key`, `.git`, `venv/`, `.venv/`, caches, and
   `tests/`/`docs/`/`README.md`/`*.md`. The `Dockerfile` only ever `COPY`s

@@ -24,17 +24,15 @@ Branch reviewed: `final-project`
   no new product features (no comments, no auth, no production database).
 - CI (`.github/workflows/ci.yml`) runs the pytest suite on push and pull
   request, with a real green→red→green proof, not just a passing run.
-- Docker image (`Dockerfile`, `.dockerignore`) is written and verified
-  against the release checklist; Docker itself isn't installed in the
-  environment this was built in (a real install attempt was made and did
-  not succeed), so no build/run happened inside an actual container — but
-  the multi-stage build's dependency-install approach and the "app/ alone
-  is sufficient to run the server" claim were both verified for real via
-  a filesystem-level simulation (isolated `pip install --prefix`, then
-  `uvicorn` started from a directory containing only `app/`, `/health`
-  returned 200). Non-root enforcement is the one thing that genuinely
-  needs a real container runtime and stays unverified. Full detail in
-  `docs/release-evidence.md`, recorded honestly rather than faked.
+- Docker image (`Dockerfile`, `.dockerignore`) was built and run against
+  a real Docker daemon: `docker build` succeeded, `docker run` started the
+  container, `GET /health` returned a real `200`, `docker exec tt-dev
+  whoami` printed `app` (confirmed non-root), and the Dockerfile's own
+  `HEALTHCHECK` instruction reported `healthy`. Full command-by-command
+  output in `docs/release-evidence.md`, including the earlier honest gap
+  (Docker wasn't installed at first, two install attempts and a
+  filesystem-level simulation happened before a real daemon came up) kept
+  for transparency.
 - AI review, security, and ownership evidence is in `docs/`.
 
 ### How to run locally
@@ -156,11 +154,11 @@ docker stop tt-dev
 
 The image is a multi-stage build (`Dockerfile`): a builder stage resolves
 Python dependencies, and the runtime stage is `python:3.11-slim`, runs as a
-non-root `app` user, and only contains `app/` (not `frontend/`, `tests/`, or
-`docs/` — see `.dockerignore`). **Note:** this was written and verified by
-static inspection against the Module 4 checklist in an environment without
-Docker installed; see [docs/verification.md](docs/verification.md) for
-exactly what was and was not run.
+non-root `app` user (confirmed: `docker exec tt-dev whoami` → `app`), and
+only contains `app/` (not `frontend/`, `tests/`, or `docs/` — see
+`.dockerignore`). These exact commands were run against a real Docker
+daemon and produced a real `200` from `/health`; full output in
+[docs/release-evidence.md](docs/release-evidence.md).
 
 ## CI
 
